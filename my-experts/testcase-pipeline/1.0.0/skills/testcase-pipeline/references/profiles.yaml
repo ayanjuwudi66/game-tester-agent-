@@ -1,0 +1,146 @@
+# =============================================================================
+# testcase-conventions · profiles.yaml
+# =============================================================================
+#
+# 用例生成流水线的【单一权威源】（Single Source of Truth）。
+#
+# 本文件承载：
+#   - 全字段字典（fields）
+#   - 分类排序（category_order）
+#   - Profile 定义（profiles，表头版本）
+#
+# 加载方：
+#   - md2csv-converter/scripts/md2csv.py         （渲染层主脚本）
+#   - md2csv-converter/scripts/validate.py       （渲染层校验器）
+#   - testcase-agent                             （询问阶段选择 profile）
+#
+# 文档镜像：
+#   - _shared_conventions.md §1 保留一份 YAML fence 作为文档展示，标注"以本文件为准"
+#
+# 扩展方式：
+#   - 加字段 → 在 fields 增条目，并在需要的 profile.columns 增行
+#   - 项目自定义覆盖 → 在同目录新增 xxx.yaml（P2 阶段落地覆盖机制）
+#
+# 生成/渲染分离原则：
+#   - 5 个生成器（testcase-*）永远产出 9 字段全集 JSONL，包括 feature_point
+#   - feature_point 值由 testpoint-splitter 输出的六列表格第 6 列携带，
+#     生成器逐行透传写入 JSONL；渲染层不做运行时反查
+#   - profile 的唯一作用：按 profile.columns 定义列白名单 + 列顺序，输出 CSV
+# =============================================================================
+
+version: 1
+active_profile: C_debug
+c_debug_trigger_keywords: [调试, 校验, 对比, debug]
+
+# -----------------------------------------------------------------------------
+# fields · 全字段字典（对应 _shared_conventions.md §2）
+# -----------------------------------------------------------------------------
+# 每个字段的属性：
+#   label_default : 未显式指定 profile.columns[i].label 时的默认表头文字
+#   source        : 谁产出这个字段（feature-splitter / testpoint-splitter / generator）
+#   required      : 字段是否必填（用于 validate 校验：required 字段值为空则告警）
+#   enum          : （可选）枚举字段的合法值列表，用于校验
+# -----------------------------------------------------------------------------
+
+fields:
+  module:
+    label_default: "模块"
+    source: feature-splitter
+    required: true
+  submodule:
+    label_default: "子模块"
+    source: feature-splitter
+    required: true
+  feature_point:
+    label_default: "功能点"
+    source: generator
+    required: true
+  testpoint:
+    label_default: "测试点"
+    source: testpoint-splitter
+    required: true
+  case_desc:
+    label_default: "用例描述"
+    source: generator
+    required: false
+  precondition:
+    label_default: "前提条件"
+    source: generator
+    required: true
+  steps:
+    label_default: "测试步骤"
+    source: generator
+    required: true
+  expected:
+    label_default: "预期结果"
+    source: generator
+    required: true
+  category:
+    label_default: "用例分类"
+    source: generator
+    required: true
+    enum: [HX, FHX, BL, BJ, YC, FCG, ZD]
+
+# -----------------------------------------------------------------------------
+# category_order · 分类排序权重（对应 _shared_conventions.md §4.2）
+# -----------------------------------------------------------------------------
+# CSV 三级聚合排序的第 4 级：模块 → 子模块首次出现 → 测试点首次出现 → 分类
+# -----------------------------------------------------------------------------
+
+category_order: [HX, FHX, BL, BJ, YC, FCG, ZD]
+
+# -----------------------------------------------------------------------------
+# profiles · 表头版本定义（对应 _shared_conventions.md §1.1）
+# -----------------------------------------------------------------------------
+# 每个 profile 的属性：
+#   label         : profile 的中文别名
+#   delivery      : 是否允许作为正式交付（false 时归档目录会加 output_suffix）
+#   output_suffix : （可选）归档目录后缀
+#   columns       : 列绑定列表，每项 {bind, label?}
+#                   - bind  : 必填，引用 fields 字典的键
+#                   - label : 可选，未提供时回退到 fields[bind].label_default
+#   columns 顺序即最终 CSV 列顺序（写死语义）；未列出的字段不会出现在 CSV 里
+# -----------------------------------------------------------------------------
+
+profiles:
+  A_legacy:
+    label: P组通用
+    delivery: true
+    columns:
+      - {bind: module,        label: "模块"}
+      - {bind: submodule,     label: "子模块"}
+      - {bind: testpoint,     label: "测试点描述"}
+      - {bind: case_desc,     label: "用例描述"}
+      - {bind: precondition,  label: "前提条件"}
+      - {bind: steps,         label: "操作步骤"}
+      - {bind: expected,      label: "预期结果"}
+      - {bind: category,      label: "用例分类"}
+
+  B_new:
+    label: 项目定制——vag通用
+    delivery: true
+    columns:
+      - {bind: module}
+      - {bind: submodule}
+      - {bind: feature_point}
+      - {bind: testpoint}
+      - {bind: precondition}
+      - {bind: steps}
+      - {bind: expected}
+      - {bind: category}
+
+  C_debug:
+    label: 调试用 9 列全集（含 case_desc + feature_point，非交付）
+    delivery: false
+    output_suffix: "_debug"
+    purpose: 字段对比与调试验证，禁止进入正式交付
+    columns:
+      - {bind: module}
+      - {bind: submodule}
+      - {bind: feature_point}
+      - {bind: testpoint}
+      - {bind: case_desc}
+      - {bind: precondition}
+      - {bind: steps}
+      - {bind: expected}
+      - {bind: category}
